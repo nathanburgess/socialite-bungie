@@ -1,6 +1,6 @@
 <?php
 
-namespace SocialiteProviders\Bungie;
+namespace NathanBurgess\SocialiteBungie;
 
 use SocialiteProviders\Manager\SocialiteWasCalled;
 
