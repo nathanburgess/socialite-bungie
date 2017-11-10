@@ -2,8 +2,9 @@
 
 namespace NathanBurgess\SocialiteBungie;
 
-use Laravel\Socialite\Two\ProviderInterface;
+use Illuminate\Support\Arr;
 use SocialiteProviders\Manager\OAuth2\User;
+use Laravel\Socialite\Two\ProviderInterface;
 use SocialiteProviders\Manager\OAuth2\AbstractProvider;
 
 class Provider extends AbstractProvider implements ProviderInterface
@@ -13,22 +14,14 @@ class Provider extends AbstractProvider implements ProviderInterface
      */
     const IDENTIFIER = 'BUNGIE';
 
-    /**
-     * {@inheritdoc}
-     */
-    protected $scopes = [];
-
-    /**
-     * {@inheritdoc}
-     */
-    protected $scopeSeparator = '+';
+    protected $membershipId = '';
 
     /**
      * {@inheritdoc}
      */
     protected function getAuthUrl($state)
     {
-        return $this->buildAuthUrlFromBase('https://www.bungie.net/' . $this->getLanguage() . '/oauth/authorize', $state);
+        return $this->buildAuthUrlFromBase('https://www.bungie.net/en/oauth/authorize', $state);
     }
 
     /**
@@ -36,7 +29,22 @@ class Provider extends AbstractProvider implements ProviderInterface
      */
     protected function getTokenUrl()
     {
-        return 'https://www.bungie.net/platform/oauth/token';
+        return "https://www.bungie.net/platform/app/oauth/token/";
+    }
+
+    public function user()
+    {
+        if($this->hasInvalidState())
+            throw new InvalidStateException;
+
+        $response = $this->getAccessTokenResponse($this->getCode());
+        $this->membershipId = $response['membership_id'];
+
+        $user = $this->mapUserToObject($this->getUserByToken($token = Arr::get($response, 'access_token')));
+
+        return $user->setToken($token)
+                    ->setRefreshToken(Arr::get($response, 'refresh_token'))
+                    ->setExpiresIn(Arr::get($response, 'expires_in'));
     }
 
     /**
@@ -44,13 +52,29 @@ class Provider extends AbstractProvider implements ProviderInterface
      */
     protected function getUserByToken($token)
     {
-        $response = $this->getHttpClient()->post($this->getTokenUrl(), [
+        $response = $this->getHttpClient()->get('https://bungie.net/platform/User/GetMembershipsById/' . $this->membershipId . '/-1', [
             'headers' => [
+                'X-API-Key' => env("BUNGIE_API_KEY"),
                 'Authorization' => 'Bearer ' . $token,
             ],
         ]);
 
-        return json_decode($response->getBody(), true);
+        return (array)json_decode($response->getBody())->Response;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getCodeFields($state = null)
+    {
+        $fields = [
+            'client_id'     => $this->clientId,
+            'redirect_uri'  => $this->redirectUrl,
+            'state'         => $state,
+            'response_type' => 'code',
+        ];
+
+        return array_merge($fields, $this->parameters);
     }
 
     /**
@@ -58,12 +82,13 @@ class Provider extends AbstractProvider implements ProviderInterface
      */
     protected function mapUserToObject(array $user)
     {
+        $data = $user["bungieNetUser"];
         return ( new User() )->setRaw($user)->map([
-            'id'       => $user['id'],
-            'nickname' => null,
-            'name'     => null,
+            'id'       => $data->membershipId,
+            'nickname' => $data->displayName,
+            'name'     => $data->blizzardDisplayName,
             'email'    => null,
-            'avatar'   => null,
+            'avatar'   => $data->profilePicturePath
         ]);
     }
 
@@ -75,21 +100,5 @@ class Provider extends AbstractProvider implements ProviderInterface
         return array_merge(parent::getTokenFields($code), [
             'grant_type' => 'authorization_code',
         ]);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    protected function getLanguage()
-    {
-        return $this->getConfig('language', 'en');
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public static function additionalConfigKeys()
-    {
-        return ['language'];
     }
 }
