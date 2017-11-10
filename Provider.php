@@ -34,10 +34,9 @@ class Provider extends AbstractProvider implements ProviderInterface
 
     public function user()
     {
-        if($this->hasInvalidState())
-            throw new InvalidStateException;
+        if($this->hasInvalidState()) throw new InvalidStateException;
 
-        $response = $this->getAccessTokenResponse($this->getCode());
+        $response           = $this->getAccessTokenResponse($this->getCode());
         $this->membershipId = $response['membership_id'];
 
         $user = $this->mapUserToObject($this->getUserByToken($token = Arr::get($response, 'access_token')));
@@ -54,7 +53,7 @@ class Provider extends AbstractProvider implements ProviderInterface
     {
         $response = $this->getHttpClient()->get('https://bungie.net/platform/User/GetMembershipsById/' . $this->membershipId . '/-1', [
             'headers' => [
-                'X-API-Key' => env("BUNGIE_API_KEY"),
+                'X-API-Key'     => env("BUNGIE_API_KEY"),
                 'Authorization' => 'Bearer ' . $token,
             ],
         ]);
@@ -83,8 +82,13 @@ class Provider extends AbstractProvider implements ProviderInterface
     protected function mapUserToObject(array $user)
     {
         $data = $user["bungieNetUser"];
+        $membershipId = 0;
+        foreach($user["destinyMemberships"] as $ms)
+            if($ms->membershipType == 4) $membershipId = $ms->membershipId;
+
         return ( new User() )->setRaw($user)->map([
             'id'       => $data->membershipId,
+            'id2'      => $membershipId,
             'nickname' => $data->displayName,
             'name'     => $data->blizzardDisplayName,
             'email'    => null,
