@@ -3,9 +3,9 @@
 namespace NathanBurgess\SocialiteBungie;
 
 use Illuminate\Support\Arr;
-use SocialiteProviders\Manager\OAuth2\User;
 use Laravel\Socialite\Two\ProviderInterface;
 use SocialiteProviders\Manager\OAuth2\AbstractProvider;
+use SocialiteProviders\Manager\OAuth2\User;
 
 class Provider extends AbstractProvider implements ProviderInterface
 {
@@ -29,14 +29,15 @@ class Provider extends AbstractProvider implements ProviderInterface
      */
     protected function getTokenUrl()
     {
-        return "https://www.bungie.net/platform/app/oauth/token/";
+        return 'https://www.bungie.net/platform/app/oauth/token/';
     }
 
     public function user()
     {
-        if($this->hasInvalidState()) throw new InvalidStateException;
-
-        $response           = $this->getAccessTokenResponse($this->getCode());
+        if ($this->hasInvalidState()) {
+            throw new InvalidStateException();
+        }
+        $response = $this->getAccessTokenResponse($this->getCode());
         $this->membershipId = $response['membership_id'];
 
         $user = $this->mapUserToObject($this->getUserByToken($token = Arr::get($response, 'access_token')));
@@ -51,14 +52,14 @@ class Provider extends AbstractProvider implements ProviderInterface
      */
     protected function getUserByToken($token)
     {
-        $response = $this->getHttpClient()->get('https://bungie.net/platform/User/GetMembershipsById/' . $this->membershipId . '/-1', [
+        $response = $this->getHttpClient()->get('https://bungie.net/platform/User/GetMembershipsById/'.$this->membershipId.'/-1', [
             'headers' => [
-                'X-API-Key'     => env("BUNGIE_API_KEY"),
-                'Authorization' => 'Bearer ' . $token,
+                'X-API-Key'     => env('BUNGIE_API_KEY'),
+                'Authorization' => 'Bearer '.$token,
             ],
         ]);
 
-        return (array)json_decode($response->getBody())->Response;
+        return (array) json_decode($response->getBody())->Response;
     }
 
     /**
@@ -81,10 +82,13 @@ class Provider extends AbstractProvider implements ProviderInterface
      */
     protected function mapUserToObject(array $user)
     {
-        $data = $user["bungieNetUser"];
+        $data = $user['bungieNetUser'];
         $membershipId = 0;
-        foreach($user["destinyMemberships"] as $ms)
-            if($ms->membershipType == 4) $membershipId = $ms->membershipId;
+        foreach ($user['destinyMemberships'] as $ms) {
+            if ($ms->membershipType == 4) {
+                $membershipId = $ms->membershipId;
+            }
+        }
 
         return ( new User() )->setRaw($user)->map([
             'id'       => $data->membershipId,
@@ -92,7 +96,7 @@ class Provider extends AbstractProvider implements ProviderInterface
             'nickname' => $data->displayName,
             'name'     => $data->blizzardDisplayName,
             'email'    => null,
-            'avatar'   => $data->profilePicturePath
+            'avatar'   => $data->profilePicturePath,
         ]);
     }
 
